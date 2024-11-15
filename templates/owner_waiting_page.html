@@ -1,0 +1,314 @@
+{% extends "template.html" %}
+
+{% block content %}
+
+Welcome to UNO, {{data.player.name}}, 
+
+<br>
+
+Your game code is: {{data.game.gamecode}}
+
+<br>
+
+Here are the players who have joined your game:
+<ul  id="player-list">
+
+</ul>
+
+
+<div>
+    I am ready to play the game:  <input type="checkbox" name="readyToPlay" id="ready-to-play-checkbox">
+
+</div>
+
+<div>
+		Options:
+		
+		<br>
+		
+		Maximum number of players: <input type="number" value="4" min="2" max="10" id="maximum-number-of-players-textbox">
+
+		<br>
+
+		Starting player:
+
+		<select name="starting" id="starting-player-selection"></select>
+
+
+		<br>
+
+
+		Initial Number of cards: <input type="number" value="7" min="2" max="7" id="number-of-cards-textbox">
+
+		<br>
+
+		Initial direction: 
+		<div>
+			<input type="radio" id="clockwise-box" name="direction" value="clockwise" onclick="setDirection(this.value)" checked>
+			<label for="clockwise-box">Clockwise</label>
+		</div>
+	
+		<div>
+			<input type="radio" id="anti-clockwise-box" name="direction" value="anticlockwise" onclick="setDirection(this.value)">
+			<label for="anti-clockwise-box">Anticlockwise</label>
+		</div>
+
+		<br>
+
+		Can stack special cards: <input type="checkbox" id="stack-special-checkbox" checked>
+
+		<br>
+
+		Can players rejoin the game if they disconnect: <input type="checkbox" id="rejoin-checkbox" checked>
+
+	
+</div>
+
+<div>
+	Customisable Cards:
+
+	<br>
+
+	Shuffle hands: <input type="checkbox" id="shuffle-hands-checkbox">
+
+	<br>
+
+	Next player must pick up cards until they get the last colour played: <input type="checkbox" id="last-colour-checkbox">
+
+	<br>
+
+	Everyone must pick up or withdraw until they get 3 cards: <input type="checkbox" id="3-cards-checkbox">
+
+	<br>
+
+	Everyone must pick up or withdraw until they get 7 cards: <input type="checkbox" id="7-cards-checkbox">
+
+</div>
+
+<button onclick="window.location.href='/'">End game</button>
+
+<script>
+
+	var data = {{  data | tojson }};
+
+
+	var playerID = data.player.id;
+
+    var readyToPlayCheckbox = document.getElementById("ready-to-play-checkbox");
+	var maxNumOfPlayersTextbox = document.getElementById("maximum-number-of-players-textbox");
+	var numOfCardsTextbox = document.getElementById("number-of-cards-textbox");
+	var stackSpecialCheckbox = document.getElementById("stack-special-checkbox");
+	var rejoinCheckbox = document.getElementById("rejoin-checkbox");
+	var shuffleHandsCheckbox = document.getElementById("shuffle-hands-checkbox");
+	var lastColourCheckbox = document.getElementById("last-colour-checkbox");
+	var threeCardsCheckbox = document.getElementById("3-cards-checkbox");
+	var sevenCardsCheckbox = document.getElementById("7-cards-checkbox");
+	var startingPlayerSelection = document.getElementById("starting-player-selection");
+
+
+
+
+
+    var socket = io("/waitingpage");
+	
+	updatePlayersList();
+
+    function updatePlayersList() {
+        updatePlayerListItems();
+		updateSelectionListItems();
+    }
+
+	function updatePlayerListItems() {
+		var playerList = document.getElementById("player-list");
+        playerList.innerHTML = "";
+
+        data.game.players.forEach(function(player) { 
+            var playerElement = document.createElement("li");
+            playerElement.textContent=player.name;
+			if (player.name != data.player.name) {
+				var kickButtonElement = document.createElement("button");
+				kickButtonElement.addEventListener("click", function(){
+					kickPlayer(player.name);
+				});
+				kickButtonElement.textContent = "Kick";
+				playerElement.appendChild(kickButtonElement);
+			}
+            if (player.readyToPlay) {
+                playerElement.style.color = "green";
+            }
+            playerList.appendChild(playerElement);
+        });
+
+	}
+
+	function updateSelectionListItems() {
+		var selectionList = document.getElementById("starting-player-selection");
+
+		selectionList.innerHTML = "";
+
+		data.game.players.forEach(function(player) {
+			var optionElement = document.createElement("option");
+			optionElement.value = player.name;
+			optionElement.textContent = player.name;
+			selectionList.appendChild(optionElement);
+		});
+
+	}
+	
+	function kickPlayer(name) {
+	
+		var kickPlayerData = {
+			name,
+			playerID
+		};
+	
+		socket.emit("kickPlayer", kickPlayerData);
+	}
+
+	function setDirection(newDirection) {
+		var setDirectionData = {
+			playerID,
+			newDirection
+		};
+
+		socket.emit("setDirection", setDirectionData);
+	}
+
+    readyToPlayCheckbox.addEventListener("change", function(event) {
+        var readyToPlay = event.currentTarget.checked;
+        var player = data.game.players.find(p => p.name == data.player.name);
+
+
+        player.readyToPlay = readyToPlay;
+        data.player.readyToPlay = readyToPlay;
+
+        updatePlayersList();
+
+        var readyToPlayData = {
+            playerID: data.player.id,
+            readyToPlay: readyToPlay
+        };
+
+        socket.emit("readyToPlay", readyToPlayData);
+
+    });
+	
+	maxNumOfPlayersTextbox.addEventListener("change", function(event) {
+		var numOfPlayers = event.target.valueAsNumber;
+		
+		if (numOfPlayers < 2) {
+			event.target.value = "2";
+		}
+		if (numOfPlayers > 10) {
+			event.target.value = "10";
+		}
+		if (numOfPlayers < data.player.length) {
+			event.target.value = data.player.length;
+		}
+		
+		var maxPlayerData = {numOfPlayers, playerID};	
+		
+		socket.emit("setMaxPlayers", maxPlayerData);
+	});
+	
+	numOfCardsTextbox.addEventListener("change", function(event) {
+		var numOfCards = event.target.valueAsNumber;
+		
+		if (numOfCards < 2) {
+			event.target.value = "2";
+		}
+		if (numOfCards > 7) {
+			event.target.value = "7";
+		}
+
+		var numCardPlayerData = {numOfCards, playerID};	
+		
+		socket.emit("setInitialNumberOfCards", numCardPlayerData);
+	});
+
+	stackSpecialCheckbox.addEventListener("change", function(event) {
+		var canStack = event.currentTarget.checked;
+
+		var canStackData = {canStack, playerID};
+
+		socket.emit("setCanStack", canStackData);
+	});
+
+	rejoinCheckbox.addEventListener("change", function(event) {
+		var canRejoin = event.currentTarget.checked;
+
+		var canRejoinData = {canRejoin, playerID};
+
+		socket.emit("setCanRejoin", canRejoinData);
+	});
+
+	shuffleHandsCheckbox.addEventListener("change", function(event) {
+		var shuffleHands = event.currentTarget.checked;
+
+		var shuffleHandsData = {shuffleHands, playerID};
+
+		socket.emit("setCanShuffleHands", shuffleHandsData);
+	});
+
+	lastColourCheckbox.addEventListener("change", function(event) {
+		var lastColour = event.currentTarget.checked;
+
+		var lastColourData = {lastColour, playerID};
+
+		socket.emit("setCanLastColour", lastColourData);
+	});
+
+	threeCardsCheckbox.addEventListener("change", function(event) {
+		var threeCards = event.currentTarget.checked;
+
+		var threeCardsData = {threeCards, playerID};
+
+		socket.emit("setCanThreeCards", threeCardsData);
+	});
+
+	sevenCardsCheckbox.addEventListener("change", function(event) {
+		var sevenCards = event.currentTarget.checked;
+
+		var sevenCardsData = {sevenCards, playerID};
+
+		socket.emit("setCanSevenCards", sevenCardsData);
+	});
+
+	startingPlayerSelection.addEventListener("change", function(event) {
+		var startingPlayer = event.target.value;
+
+		var startingPlayerData = {startingPlayer, playerID};
+
+		socket.emit("setStartingPlayer", startingPlayerData);
+	})
+	
+	var joinData = {
+		playerID: data.player.id
+	};
+	
+	socket.emit("join", joinData);
+
+    socket.on("notInGame", function() {
+        window.location.href = "/";
+    });
+
+    socket.on("gameEnded", function() {
+        window.location.href = "/";
+    });
+
+    socket.on("updatePlayersList", function(p) { 
+        data.game.players = p.players;
+        updatePlayersList();
+    });
+
+	socket.on("updateOptions", function(o) {
+        data.game.options = o;
+    });
+
+	socket.on("gameStarted", function() {
+		window.location.href="/gamepage/" + data.player.id;
+	});
+
+</script>
+
+{% endblock %}

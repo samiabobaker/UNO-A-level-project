@@ -1,0 +1,107 @@
+{% extends "template.html" %}
+
+{% block content %}
+    <input id="name" type="text" placeholder="Enter your name">
+	<input id="gamecode" type="text" placeholder="Enter your gamecode">
+    <button id="join-game">Join Game</button>
+	
+	<div>
+	  <input type="radio" id="join-game-box" name="action" value="joinGame" onclick="changeAction(this);"
+			 checked>
+	  <label for="join-game-box">Join game</label>
+	</div>
+
+	<div>
+	  <input type="radio" id="create-game-box" name="action" value="createGame" onclick="changeAction(this);">
+	  <label for="create-game-box">Create Game</label>
+	</div>
+	
+	<span id="gamecode-error-message" hidden>The gamecode you entered does not exist</span>
+		
+	
+	
+    <script type="text/javascript" charset="utf-8">
+        var socket = io();
+
+        var nameInput = document.getElementById("name");
+		var gamecodeInput = document.getElementById("gamecode");
+        var joinGame = document.getElementById("join-game");
+		var gamecodeErrorMessage = document.getElementById("gamecode-error-message");
+		
+		var currentAction = "joinGame";
+		
+		function changeAction(newAction) {
+			currentAction = newAction.value;
+			gamecodeErrorMessage.hidden = true;
+			if (newAction.value == "createGame") {
+				gamecodeInput.hidden = true;
+			}
+			else {
+				gamecodeInput.hidden = false;
+			}
+		
+		}
+		
+		
+		function showGameNotFoundError(errorMessage) {
+			console.log(errorMessage);
+			gamecodeErrorMessage.textContent=errorMessage;
+			gamecodeErrorMessage.hidden = false;
+			gamecodeInput.value = "";
+		
+		}
+		
+		
+		
+
+        joinGame.addEventListener("click", function() {
+		
+		
+		
+		
+			if (currentAction == "createGame") {
+				var name = nameInput.value;
+				fetch("/createGame", {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({name})
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data){
+					window.location.href=data.goto;
+				});
+			}
+			else {
+				var name = nameInput.value;
+				var gamecode = gamecodeInput.value;
+				fetch("/joinGame", {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({name,gamecode})
+				})
+				.then(function(response) {
+				
+					return response.json()
+				})
+				.then(function(data){
+				
+					if (!data.gamefound) {
+						showGameNotFoundError(data.message);
+					}
+					if (data.gamefound) {
+						window.location.href = data.goto;
+					}
+				})
+			}
+        })
+
+    </script>
+{% endblock %}

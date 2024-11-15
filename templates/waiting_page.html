@@ -1,0 +1,186 @@
+{% extends "template.html" %}
+
+{% block content %}
+
+Welcome to UNO, {{data.player.name}}, 
+
+Members of the game:
+<ul  id="player-list">
+
+</ul>
+
+<div>
+    I am ready to play the game:  <input type="checkbox" name="readyToPlay" id="ready-to-play-checkbox">
+</div>
+
+<div>
+    Options:
+    
+    <br>
+    
+    Maximum number of players: <span id="maximum-number-of-players">4</span>
+
+    <br>
+
+    Starting player: <span id="starting-player"></span>
+
+
+    <br>
+
+
+    Initial Number of cards: <span id="initial-number-of-cards">7</span>
+
+    <br>
+
+    Initial direction: <span id="initial-direction">Clockwise</span>
+
+    <br>
+
+    Can stack special cards: <span id="can-stack">Yes</span>
+
+    <br>
+
+    Can players rejoin the game if they disconnect: <span id="can-rejoin">Yes</span>
+
+
+</div>
+
+<div>
+Customisable Cards:
+
+<ul id="customisable-cards-list"></ul>
+
+</div>
+
+<button onclick="window.location.href='/'">Leave game</button>
+
+<script>
+
+	var readyToPlayCheckbox = document.getElementById("ready-to-play-checkbox");
+
+    var socket = io("/waitingpage");
+	
+	var data = {{ data | tojson }};
+
+
+	
+	updatePlayersList();
+    updateOptions();
+
+    function updatePlayersList() {
+        var playerList = document.getElementById("player-list");
+        playerList.innerHTML = "";
+		var inGame = false;
+
+        data.game.players.forEach(function(player) { 
+            var playerElement = document.createElement("li");
+            playerElement.textContent=player.name;
+            if (player.readyToPlay) {
+                playerElement.style.color = "green";
+            }
+			if (player.name == data.player.name) {
+				inGame = true;
+			}
+            playerList.appendChild(playerElement);
+        });
+		
+		if (!inGame) {
+			window.location.href="/"
+		}
+    }
+
+    function updateOptions() {
+        var options = data.game.options;
+
+        var maxNumOfPlayers = document.getElementById("maximum-number-of-players");
+        maxNumOfPlayers.textContent = options.maxPlayers;
+
+        var startingPlayer = document.getElementById("starting-player");
+        startingPlayer.textContent = options.startingPlayer;
+
+        var numCards = document.getElementById("initial-number-of-cards");
+        numCards.textContent = options.initialNumberOfCards;
+
+        var direction = document.getElementById("initial-direction");
+        direction.textContent = options.initialDirection;
+
+        var canStack = document.getElementById("can-stack");
+        canStack.textContent = options.canStackSpecials ? "Yes": "No" //Shows yes if they can stack and no if they cannot.
+
+        var canRejoin = document.getElementById("can-rejoin");
+        canRejoin.textContent = options.canRejoin ? "Yes": "No"
+
+        var customisableCardsList = document.getElementById("customisable-cards-list");
+
+        customisableCardsList.innerHTML = "";
+
+
+        var cardDescriptions = {
+                "shuffleHands": "Shuffle hands",
+                "lastColour": "Next player must pick up cards until they get the last colour played",
+                "threeCards": "Everyone must pick up or withdraw until they get 3 cards",
+                "sevenCards": "Everyone must pick up or withdraw until they get 7 cards"
+        };
+
+        options.customisableCards.forEach(function(card) {
+            cardElement = document.createElement("li");
+            cardElement.textContent = cardDescriptions[card];
+
+            customisableCardsList.appendChild(cardElement);
+        });
+    }
+
+
+    readyToPlayCheckbox.addEventListener("change", function(event) {
+        var readyToPlay = event.currentTarget.checked;
+        var player = data.game.players.find(p => p.name == data.player.name);
+
+
+        player.readyToPlay = readyToPlay;
+        data.player.readyToPlay = readyToPlay;
+
+        updatePlayersList();
+
+        var readyToPlayData = {
+            playerID: data.player.id,
+            readyToPlay: readyToPlay
+        };
+
+        socket.emit("readyToPlay", readyToPlayData);
+
+    });
+	
+	
+	var joinData = {
+		playerID: data.player.id
+	};
+	
+	socket.emit("join", joinData);
+
+    socket.on("notInGame", function() {
+        window.location.href = "/";
+    });
+
+    socket.on("gameEnded", function() {
+		console.log("HI")
+        window.location.href = "/";
+    });
+
+    socket.on("updatePlayersList", function(p) { 
+        data.game.players = p.players;
+        updatePlayersList();
+
+    });
+
+    socket.on("updateOptions", function(o) {
+        data.game.options = o;
+        updateOptions();
+    });
+
+    socket.on("gameStarted", function() {
+		window.location.href="/gamepage/" + data.player.id;
+	});
+
+</script>
+
+{% endblock %}

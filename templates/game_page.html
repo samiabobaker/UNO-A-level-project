@@ -1,0 +1,343 @@
+{% extends 'template.html' %}
+
+
+{% block head %}
+    <link rel="stylesheet" href="{{url_for('static', filename='css/gamepage.css')}}">
+{% endblock %}
+
+{% block content %}
+
+
+<div class="game">
+    <div>Current penalty is : <span id="penalty"></span></div>
+    <div>Current mode is: <span id ="mode"></span></div>
+    <div>Players:
+        <ul id="players-list">
+            
+        </ul>
+    </div>
+	<div>Winners: <span id="winners"></span></div>
+    <button id="skip-button">Skip go</button>
+
+    <button class="choose-colour-button" id="red-button" value="red">Red</button>
+    <button class="choose-colour-button" id="yellow-button" value="yellow">Yellow</button>
+    <button class="choose-colour-button" id="green-button" value="green">Green</button>
+    <button class="choose-colour-button" id="blue-button" value="blue">Blue</button>
+
+    <button id = "uno">Uno</button>
+    <button id = "report">Report</button>
+    <select name="report" id="report-selection"></select>
+	
+	
+	<button id="new-game-button" disabled>New game</button>
+	<button id="end-game-button" disabled>End game</button>
+	
+
+
+
+    <div id="deckandpile">
+        
+        <div id="pile">
+            <img id="top-card" class="deck-card" src="{{data.game.topcard.imageURL}}">
+        </div>
+        <div id="deck">
+            <img class="deck-card" src="{{url_for('static', filename='cardassets/Deck.png')}}">
+
+        </div>
+        
+    </div>
+
+    <div id="playerdeck">
+
+
+    </div>
+</div>
+
+
+
+<script>
+
+    var data = {{ data | tojson }};
+
+    var socket = io("/gamepage");
+
+    var playerDeck = document.getElementById("playerdeck");
+    var deck = document.getElementById("deck");
+    var skipButton = document.getElementById("skip-button");
+	var newGameButton = document.getElementById("new-game-button");
+	var endGameButton = document.getElementById("end-game-button");
+    var unoButton = document.getElementById("uno");
+    var reportButton = document.getElementById("report");
+    var sayingUno =  [];
+
+    updateState();
+
+    function updateState() {
+        updateSkipButton();
+        updateChooseColourButtons();
+        updatePlayerDeck();
+        updateTopCard();
+        updatePenalty();
+        updateMode();
+		updateWinners();
+		checkIfWon();
+        updatePlayersList();
+        updateCurrentPlayer();
+    }
+
+
+    function updatePlayersList() {
+        var playersList = document.getElementById("players-list");
+        var players = data.game.players;
+        playersList.innerHTML = "";
+        players.forEach(function(player) {
+            var playerElement = document.createElement("li");
+            var playerText = `${player.name} - ${player.cards.number}`;
+            if (player.currentPlayer) {
+                playerText += " (Current player)";
+            }
+            if (sayingUno.includes(player.name)) {
+                playerText += " UNO!";
+            }
+            playerElement.textContent = playerText;
+            playersList.appendChild(playerElement);
+            
+        });
+
+
+        var selectionList = document.getElementById("report-selection");
+
+		selectionList.innerHTML = "";
+
+		data.game.players.forEach(function(player) {
+			var optionElement = document.createElement("option");
+			optionElement.value = player.name;
+			optionElement.textContent = player.name;
+			selectionList.appendChild(optionElement);
+		});
+    }
+	
+	
+	function checkIfWon() {
+		if (data.game.currentTurn.won && data.player.owner) {
+			
+			newGameButton.disabled = false;
+			endGameButton.disabled = false;
+		}
+	}
+	
+	function checkGameEnded() {
+		if (data.game.currentTurn.gameEnded) {
+			window.location.href = "/waiting/" + data.game.id
+		}
+	}
+	
+	function updateWinners() {
+		var winnersTextbox = document.getElementById("winners");
+		var winners = data.game.currentTurn.winners;
+		var winnersText = winners.join(",");
+		winnersTextbox.textContent = winnersText;
+	}
+
+    function updatePenalty() {
+        var penaltyTextbox = document.getElementById("penalty");
+        penaltyTextbox.textContent = data.game.currentTurn.penalty;
+    }
+
+    function updateMode() {
+        var modeTextbox = document.getElementById("mode");
+        modeTextbox.textContent = data.game.currentTurn.mode;
+    }
+
+
+
+    function updateChooseColourButtons() {
+        var buttons = document.querySelectorAll(".choose-colour-button");
+        var chooseColour = data.game.currentTurn.chooseColour;
+        buttons.forEach(function(button) {
+            button.disabled = !(chooseColour && data.player.currentPlayer);
+            button.addEventListener("click", function(event){
+                var colour = event.target.value;
+                pickColour(colour);
+            });
+        });
+    }
+
+
+    function updateSkipButton() {
+        var skippable = data.game.currentTurn.skippable;
+        skipButton.disabled = !(skippable && data.player.currentPlayer);
+    }
+
+    function updateTopCard() {
+        var topCard = data.game.topcard;
+        var topCardImg  = document.getElementById("top-card");
+        topCardImg.src = topCard.imageURL;
+    }
+
+    function updatePlayerDeck() {
+
+        var playerCards = data.player.cards;
+
+        playerDeck.innerHTML = "";
+
+        playerCards.forEach(function(c) {
+            var cardIndex = c.index;
+            var cardElement = document.createElement("img");
+            cardElement.src = c.card.imageURL;
+            cardElement.className = "card";
+            cardElement.addEventListener("click", function(event) {
+                placeDownCard(cardIndex);
+            });
+            playerDeck.appendChild(cardElement);
+        });
+
+    };
+
+    function updateCurrentPlayer() {
+        var players = data.game.players;
+        var currentPlayer = players.find(p => p.currentPlayer);
+        if (currentPlayer.name == data.player.name) {
+            data.player.currentPlayer = true;
+        }
+    }
+
+
+    function pickColour(colour) {
+        if (data.player.currentPlayer) {
+            var pickColourData = {
+                playerID: data.player.id,
+                action: {
+                    type: "chooseColour",
+                    colour: colour,
+                    player: data.player.id
+                }
+            }
+
+            console.log("HI");
+            console.log(pickColourData);
+
+            socket.emit("gameAction", pickColourData);
+        }
+    }
+
+
+    function placeDownCard(index) {
+        if (data.player.currentPlayer) {
+            var placeDownCardData = {
+                playerID: data.player.id,
+                action: {
+                    type: "placeDown",
+                    index: index,
+                    player: data.player.id
+                }
+            }
+            socket.emit("gameAction", placeDownCardData);
+        }
+    }
+	
+	newGameButton.addEventListener("click", function(event) {
+		var newGameData = {
+			playerID: data.player.id
+		
+		};
+		
+		socket.emit("newGame", newGameData);
+	});
+	
+	endGameButton.addEventListener("click", function(event) {
+		var endGameData = {
+			playerID: data.player.id
+		
+		};
+		
+		socket.emit("endGame", endGameData);
+	});
+
+    deck.addEventListener("click", function(event) {
+        if (data.player.currentPlayer) {
+            var pickUpCardData = {
+                playerID: data.player.id,
+                action: {
+                    type: "pickUp",
+                    player: data.player.id
+                }
+            };
+            socket.emit("gameAction", pickUpCardData);
+        }
+    });
+
+    skipButton.addEventListener("click", function(event) {
+        if (data.player.currentPlayer) {
+            var skipData = {
+                playerID: data.player.id,
+                action: {
+                    type: "skip",
+                    player: data.player.id
+                }
+            };
+            socket.emit("gameAction", skipData);
+        }
+    });
+
+    unoButton.addEventListener("click", function(event) {
+        if (!data.game.currentTurn.won) {
+            var unoData = {
+                playerID: data.player.id
+            }
+            socket.emit("uno", unoData);
+        }
+    });
+
+    reportButton.addEventListener("click", function(event) {
+        var reportSelection = document.getElementById("report-selection");
+        var report = reportSelection.selectedIndex;
+        var reportData = {
+            playerID: data.player.id,
+            report: report
+        };
+        socket.emit("reportUno", reportData);
+        reportButton.disabled = true;
+        setTimeout(function() {
+            reportButton.disabled = false;
+        }, 30000);
+    });
+
+    var joinData = {
+		playerID: data.player.id
+	};
+	
+	socket.emit("join", joinData);
+
+    socket.on("updatePlayerState", function(newState) {
+        data.player = newState;
+        updateState();
+    });
+
+    socket.on("updateGameState", function(newState) {
+        socket.emit("givePlayerState", {
+            playerID: data.player.id
+        });
+        data.game = newState;
+        updateState();
+    })
+	
+	socket.on("goToWaitingPage", function() {
+		window.location.href = "/waiting/" + data.player.id
+	});
+
+    socket.on("playerUno", function(player) {
+        sayingUno.push(player);
+        updatePlayersList();
+        setTimeout(function() {
+            sayingUno = sayingUno.filter(p => p != player);
+            updatePlayersList();
+        }, 5000);
+    });
+
+
+
+</script>
+
+
+{% endblock %}

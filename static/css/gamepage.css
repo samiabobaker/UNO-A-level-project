@@ -1,0 +1,50 @@
+/*
+Remember to reference #playerdeck.
+*/
+
+
+
+body {
+    margin:0;
+    padding:0;
+    font-family: sans-serif;
+}
+
+.game {
+    height: 100vh;
+    background: #0b44b0;
+}
+
+#playerdeck { 
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin-left:0;
+    margin-right:0;
+    text-align: center;
+    top: 70%;
+}
+
+#deckandpile {
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin-left:0;
+    margin-right:0;
+    text-align: center;
+    top: 30%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+}
+
+.card {
+    width: 100px;
+    height: 145px;
+}
+
+.deck-card {
+    width: 150px;
+}
+
